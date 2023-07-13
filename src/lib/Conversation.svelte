@@ -26,56 +26,55 @@
         }
     })
 
-    async function checkConversation(id = ''){
-        conversationRef.get(id).get('members').once(async(data) => {
-            return await listConversation(data, id)
+    async function checkConversation(id){
+        conversationRef.get(id).get('members').once((data) => {
+            return listConversation(data, id)
         })
     }
 
-    async function listConversation(data, key){
-        let pair = db.user()._.sea
-        let isCreator = data.creator == pair.pub
-        let isMember = data.member == pair.pub
-        if(isCreator || isMember){
-            let list = {
-                key: key,
-                members: {
-                    sender: {
-                        alias: $username,
-                        pub: pair.pub,
-                        epub: pair.epub
-                    },
-                    receiver: {
-                        alias: '',
-                        pub: '',
-                        epub: ''
+    function listConversation(data, key){
+        if(data != null){
+            let pair = db.user()._.sea
+            let isCreator =  data.creator == pair.pub
+            let isMember =  data.member == pair.pub
+            if(isCreator || isMember){
+                let list = {
+                    key: key,
+                    members: {
+                        sender: {
+                            alias: $username,
+                            pub: pair.pub,
+                            epub: pair.epub
+                        },
+                        receiver: {
+                            alias: '',
+                            pub: '',
+                            epub: ''
+                        }
                     }
                 }
+                if(data.creator == pair.pub){
+                    db.user(data.member).once(async (data) => {
+                    let receiver = {
+                            alias: data.alias,
+                            pub: data.pub,
+                            epub: data.epub
+                        }
+                    list.members.receiver = receiver
+                    })
+                }else if(data.member == pair.pub){
+                    // @ts-ignore
+                    db.user(data.creator).once(async (data) => {
+                    let receiver = {
+                            alias: data.alias,
+                            pub: data.pub,
+                            epub: data.epub
+                        }
+                    list.members.receiver = receiver
+                    })
+                }
+                conversations.set([...$conversations, list])
             }
-            if(data.creator == pair.pub){
-            // @ts-ignore
-                await db.user(data.member).once(async (data) => {
-                let receiver = {
-                        alias: data.alias,
-                        pub: data.pub,
-                        epub: data.epub
-                    }
-                list.members.receiver = receiver
-                })
-            }else if(data.member == pair.pub){
-                // @ts-ignore
-                await db.user(data.creator).once(async (data) => {
-                let receiver = {
-                        alias: data.alias,
-                        pub: data.pub,
-                        epub: data.epub
-                    }
-                list.members.receiver = receiver
-                })
-            }
-            conversations.set([...$conversations, list])
-            // chatWith.set([...$chatWith, list])
-            // console.log(Object.values($chatWith))
         }
     }
 
@@ -91,6 +90,7 @@
             if(ack.err){
                 console.log(ack.err)
             }else{
+                console.log(ack.conversation)
                 console.log('Conversation Created!')
             }
         })
@@ -101,13 +101,13 @@
         // @ts-ignore
         db.user(formatedAlias).map().once(async(data) => {
             if(data){
-                console.log(data)
+                console.log(`user with alias ${alias} found!`)
                 searchedUser = data.alias;
                 selectedUser = data
                 // await checkConversation(data.alias)
             }else{
                 // alert(`user with alias ${alias} not found!`)
-                console.log('No user found')
+                console.log(`user with alias ${alias} not found!`)
             }
         })
     }
@@ -122,10 +122,8 @@
     }
 
     async function fetchMessages(){
-        let messageToPush = []
         conversationRef.get($chatWith.key).get('messages').map().once(async(data, key) => {
             if(data){
-                console.log(key)
                 let pair = db.user()._.sea
                 let receiverEpub = $chatWith.members.receiver.epub
                 let secretData = await SEA.secret(receiverEpub, pair);
@@ -161,6 +159,19 @@
             })
     }
 
+    async function clearConversation(){
+        let pair = db.user()._.sea
+        conversationRef.map().once(async(data, key) => {
+            conversationRef.get(key).put(null, ack => {
+                if(ack.err){
+                    console.log(ack.err)
+                }else{
+                    console.log('Conversation Cleared')
+                }
+            })
+        })
+    }
+
     function signout() {
       user.leave();
       username.set('');
@@ -171,6 +182,7 @@
     {#if $username}
     <h1>{$username == undefined ? 'wait...' : 'Logged in as '+$username}</h1>
     <button on:click={signout}>Logout</button>
+    <button on:click={clearConversation}>Clear Conversation</button>
     <div>
         <div>
             <input type="text" name="alias" bind:value={alias} id="alias">
