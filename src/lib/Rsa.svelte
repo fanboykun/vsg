@@ -3,6 +3,7 @@
     import { convertAsciiToText, convertTextToAscii } from "./text";
     import { generateKeys, encryptMessageWithPublicKey, decryptMessageWithPrivateKey } from "./rsa";
     import { arrToObj, objToArr } from "./formatter";
+  import { onMount } from "svelte";
 
     const Alice = {
         name: 'Alice',
@@ -31,6 +32,11 @@
             d: 0
         }
     }   
+
+    onMount(() => {
+        generateInfo('Alice')
+        generateInfo('Bob')
+    })
 
     function generateInfo(who){
         if(who === 'Alice'){
@@ -71,7 +77,7 @@
             alert('Please generate Bob info first')
             return
         }
-        conversion.msgAfterDecrypt = decryptMessageWithPrivateKey(conversion.msgAfterEncrypt, receiver.privateKey)
+        conversion.msgAfterDecrypt = decryptMessageWithPrivateKey(msg, receiver.privateKey)
     }
 </script>
 
@@ -82,8 +88,8 @@
         <div>
             <p>Alice p : {Alice.p} q : {Alice.q}</p>
             <p>Alice pub n : {Alice.publicKey.n} priv n {Alice.privateKey.n}</p>
-            <p>Alice e : {Alice.publicKey.e}</p>
-            <p>Alice e : {Alice.privateKey.d}</p>
+            <p>Alice e (public key) : {Alice.publicKey.e}</p>
+            <p>Alice d (private key) : {Alice.privateKey.d}</p>
         </div>
     </div>
     <div>
@@ -92,8 +98,8 @@
         <div>
             <p>Bob p : {Bob.p} q : {Bob.q}</p>
             <p>Bob pub n : {Bob.publicKey.n} priv n : {Bob.privateKey.n}</p>
-            <p>Bob e : {Bob.publicKey.e}</p>
-            <p>Bob e : {Bob.privateKey.d}</p>
+            <p>Bob e (public key) : {Bob.publicKey.e}</p>
+            <p>Bob d (private key) : {Bob.privateKey.d}</p>
         </div>
     </div>
     
@@ -104,7 +110,7 @@
     </div>
     <div>
         <h3>ASCII value after convert</h3>
-        {JSON.stringify(conversion.ascii)}
+        {conversion.ascii}
     </div>
     <div>
         <h3>RSA encryption (alice to bob)</h3>
@@ -131,9 +137,6 @@
     <div>
         <h3>Plain Text</h3>
         <button on:click={() => conversion.textAfterConversion =  convertAsciiToText(conversion.msgAfterDecrypt)}>Convert</button>
-        <!-- <p>
-            {conversion.textAfterConversion}
-        </p> -->
         <div>
             {conversion.textAfterConversion}
         </div>
