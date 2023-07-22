@@ -4,7 +4,6 @@ import 'gun/sea';
 import { writable } from 'svelte/store';
 
 // Database
-// export const db = GUN({peers : ['http://localhost:8000/gun']});
 export const db = GUN({peers : ['http://localhost:4200/gun'], localStorage: false, axe: false});
 
 // Gun User
@@ -18,6 +17,4 @@ user.get('alias').on(v => username.set(v))
 db.on('auth', async(event) => {
     const alias = await user.get('alias'); // username string
     username.set(alias);
-    // console.log(`user pub : ${user.is.pub}`);
-    // console.log(`signed in as ${alias}`);
 });

@@ -1,19 +1,32 @@
 <script>
-    import { user } from './user';
-  
+  // @ts-nocheck
+    import { db, user } from './user';
+    import { rsa, generateKeys, generateRandomTwoDigitPrimeNumbers } from "./rsa";
+
     let username;
     let password;
   
-    function login() {
+    function login(keyGen) {
       user.auth(username, password, ({ err }) => err && alert(err));
-      // user.auth(username, password, (ack, err) => {
-      //   if (err) {
-      //     alert(err);
-      //   } else {
-      //     console.log(ack);
-      //   }
-      // });
-      // user.is.public_name.set({ username });
+      if (keyGen){
+        if(user.is){
+          generateInfo(keyGen)
+        }
+      }
+    }
+
+    async function generateInfo(keyGen){
+      // db.on('auth', async () => {
+        const pair = await db.user()._.sea
+        await db.get(pair.pub).get('rsa').put(keyGen, (ack) => {
+          console.log(ack)
+          if(ack.err){
+            console.log(ack.err)
+          }else{
+            rsa.set(keyGen)
+          }
+        })
+      // })
     }
   
     function signup() {
@@ -21,17 +34,60 @@
         if (err) {
           alert(err);
         } else {
-          login();
+          if(username == 'aku'){
+            const keyGen = generateKeys(11, 13)
+            login(keyGen);
+          }else if(username == 'dia'){
+            const keyGen = generateKeys(17, 23)
+            login(keyGen);
+          }else{
+            const keyGen = generateKeys(generateRandomTwoDigitPrimeNumbers(), generateRandomTwoDigitPrimeNumbers())
+            login(keyGen);
+          }
         }
       });
     }
   </script>
   
-  <label for="username">Username</label>
-  <input class="user-input" name="username" bind:value={username} minlength="3" maxlength="16" />
-  
-  <label for="password">Password</label>
-  <input class="user-input" name="password" bind:value={password} type="password" />
-  
-  <button class="login" on:click={login}>Login</button>
-  <button class="login"  on:click={signup}>Sign Up</button>
+  <!-- <div class="flex w-screen h-screen bg-slate-600">
+    <label for="username">Username</label>
+    <input class="user-input" name="username" bind:value={username} minlength="3" maxlength="16" />
+    
+    <label for="password">Password</label>
+    <input class="user-input" name="password" bind:value={password} type="password" />
+    
+    <button class="login" on:click={login}>Login</button>
+    <button class="login"  on:click={signup}>Sign Up</button>
+  </div> -->
+
+  <section class="bg-gray-50 dark:bg-gray-900">
+    <div class="flex flex-col items-center justify-center px-6 py-8 mx-auto md:h-screen lg:py-0">
+        <span class="flex items-center text-2xl font-semibold text-gray-900 dark:text-white">
+            Decentralized Chat With
+          </span>
+          <span class="flex items-center mb-6 text-xl font-semibold text-gray-900 dark:text-white">
+            Vite + Gun + Svelte  
+          </span>
+        <div class="w-full bg-white rounded-lg shadow dark:border md:mt-0 sm:max-w-md xl:p-0 dark:bg-gray-800 dark:border-gray-700">
+            <div class="p-6 space-y-4 md:space-y-6 sm:p-8">
+                <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 md:text-2xl dark:text-white">
+                    Sign in to your account
+                </h1>
+                <div class="space-y-4 md:space-y-6" action="#">
+                    <div>
+                        <label for="username" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Your username</label>
+                        <input type="text" name="username" bind:value={username} id="username" class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-teal-600 focus:border-teal-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="username" required="">
+                    </div>
+                    <div>
+                        <label for="password" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Password</label>
+                        <input type="password" name="password" bind:value={password} id="password" placeholder="••••••••" class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-teal-600 focus:border-teal-600 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" required="">
+                    </div>
+                    <button type="submit" on:click={login} class="w-full text-white bg-teal-600 hover:bg-teal-700 focus:ring-4 focus:outline-none focus:ring-teal-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-teal-600 dark:hover:bg-teal-700 dark:focus:ring-teal-800">Sign in</button>
+                    <p class="text-sm font-light text-gray-500 dark:text-gray-400">
+                        Don’t have an account yet? <button on:click={signup} class="font-medium text-teal-600 hover:underline dark:text-teal-500">Sign up</button> instead.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+  </section>

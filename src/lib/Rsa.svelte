@@ -34,8 +34,8 @@
     }   
 
     onMount(() => {
-        generateInfo('Alice')
-        generateInfo('Bob')
+        // generateInfo('Alice')
+        // generateInfo('Bob')
     })
 
     function generateInfo(who){

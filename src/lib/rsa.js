@@ -1,4 +1,7 @@
 // @ts-nocheck
+import { writable } from 'svelte/store';
+export const rsa = writable([]);
+
 export function generateKeys(p, q){
     let publicKey = {}
     let privateKey = {}
@@ -12,6 +15,29 @@ export function generateKeys(p, q){
     privateKey.n = n
     return {publicKey, privateKey}
 }
+
+export function generateRandomTwoDigitPrimeNumbers(){
+    return getRandPrime(10, 99)
+}
+
+const getPrimes = (min, max) => {
+    const result = Array(max + 1)
+      .fill(0)
+      .map((_, i) => i);
+    for (let i = 2; i <= Math.sqrt(max + 1); i++) {
+      for (let j = i ** 2; j < max + 1; j += i) delete result[j];
+    }
+    return Object.values(result.slice(Math.max(min, 2)));
+  };
+  
+const getRandNum = (min, max) => {
+    return Math.floor(Math.random() * (max - min + 1) + min);
+};
+
+const getRandPrime = (min, max) => {
+    const primes = getPrimes(min, max);
+    return primes[getRandNum(0, primes.length - 1)];
+};
 
 export function calculateMod(p,q){
     return p * q
@@ -36,6 +62,7 @@ export function calculateD(e, phi){
     let d = 1
     while(d < phi){
         if((d * e) % phi === 1){
+            // console.log(`${(d * e)} %  ${phi} = ${(d * e) % phi} `)
             break
         }
         d++
@@ -62,6 +89,7 @@ export function encryptMessage(message, e, n){
     let encryptedMessage = []
     for(let i = 0; i < message.length; i++){
         encryptedMessage.push(raiseKeyToPowerModN(message[i], e, n))
+        // encryptedMessage.push((message[i] ** e) % n)
     }
     return encryptedMessage
 }
@@ -74,6 +102,7 @@ export function decryptMessage(message, d, n){
     let decryptedMessage = []
     for(let i = 0; i < message.length; i++){
         decryptedMessage.push(raiseKeyToPowerModN(message[i], d, n))
+        // decryptedMessage.push((message[i] ** d) % n)
     }
     return decryptedMessage
 }
@@ -120,84 +149,4 @@ export function isNumberPrime(number){
         }
     }
     return true
-}
-
-export function generateKeysWithBitsAndMessage(bits, message){
-    let keys = generateKeysWithBits(bits)
-    let encryptedMessage = encryptMessageWithPublicKey(message, keys.publicKey)
-    let decryptedMessage = decryptMessageWithPrivateKey(encryptedMessage, keys.privateKey)
-    return {keys, encryptedMessage, decryptedMessage}
-}
-
-export function generateKeysWithBitsAndMessageAndPQ(bits, message, p, q){
-    let keys = generateKeys(p, q)
-    let encryptedMessage = encryptMessageWithPublicKey(message, keys.publicKey)
-    let decryptedMessage = decryptMessageWithPrivateKey(encryptedMessage, keys.privateKey)
-    return {keys, encryptedMessage, decryptedMessage}
-}
-
-export function generateKeysWithBitsAndMessageAndPQAndE(bits, message, p, q, e){
-    let keys = generateKeys(p, q)
-    keys.publicKey.e = e
-    keys.privateKey.d = calculateD(e, calculatePhi(p, q))
-    let encryptedMessage = encryptMessageWithPublicKey(message, keys.publicKey)
-    let decryptedMessage = decryptMessageWithPrivateKey(encryptedMessage, keys.privateKey)
-    return {keys, encryptedMessage, decryptedMessage}
-}
-
-export function generateKeysWithBitsAndMessageAndPQAndEAndD(bits, message, p, q, e, d){
-    let keys = generateKeys(p, q)
-    keys.publicKey.e = e
-    keys.privateKey.d = d
-    let encryptedMessage = encryptMessageWithPublicKey(message, keys.publicKey)
-    let decryptedMessage = decryptMessageWithPrivateKey(encryptedMessage, keys.privateKey)
-    return {keys, encryptedMessage, decryptedMessage}
-}
-
-export function generateKeysWithBitsAndMessageAndPQAndEAndDAndN(bits, message, p, q, e, d, n){
-    let keys = generateKeys(p, q)
-    keys.publicKey.e = e
-    keys.privateKey.d = d
-    keys.publicKey.n = n
-    keys.privateKey.n = n
-    let encryptedMessage = encryptMessageWithPublicKey(message, keys.publicKey)
-    let decryptedMessage = decryptMessageWithPrivateKey(encryptedMessage, keys.privateKey)
-    return {keys, encryptedMessage, decryptedMessage}
-}
-
-export function generateKeysWithBitsAndMessageAndPQAndEAndDAndNAndEncryptedMessage(bits, message, p, q, e, d, n, encryptedMessage){
-    let keys = generateKeys(p, q)
-    keys.publicKey.e = e
-    keys.privateKey.d = d
-    keys.publicKey.n = n
-    keys.privateKey.n = n
-    let decryptedMessage = decryptMessageWithPrivateKey(encryptedMessage, keys.privateKey)
-    return {keys, encryptedMessage, decryptedMessage}
-}
-
-export function generateKeysWithBitsAndMessageAndPQAndEAndDAndNAndEncryptedMessageAndDecryptedMessage(bits, message, p, q, e, d, n, encryptedMessage, decryptedMessage){
-    let keys = generateKeys(p, q)
-    keys.publicKey.e = e
-    keys.privateKey.d = d
-    keys.publicKey.n = n
-    keys.privateKey.n = n
-    return {keys, encryptedMessage, decryptedMessage}
-}
-
-export function generateKeysWithBitsAndMessageAndPQAndEAndDAndNAndEncryptedMessageAndDecryptedMessageAndIsMessageDecrypted(bits, message, p, q, e, d, n, encryptedMessage, decryptedMessage, isMessageDecrypted){
-    let keys = generateKeys(p, q)
-    keys.publicKey.e = e
-    keys.privateKey.d = d
-    keys.publicKey.n = n
-    keys.privateKey.n = n
-    return {keys, encryptedMessage, decryptedMessage, isMessageDecrypted}
-}
-
-export function generateKeysWithBitsAndMessageAndPQAndEAndDAndNAndEncryptedMessageAndDecryptedMessageAndIsMessageDecryptedAndIsMessageEncrypted(bits, message, p, q, e, d, n, encryptedMessage, decryptedMessage, isMessageDecrypted, isMessageEncrypted){
-    let keys = generateKeys(p, q)
-    keys.publicKey.e = e
-    keys.privateKey.d = d
-    keys.publicKey.n = n
-    keys.privateKey.n = n
-    return {keys, encryptedMessage, decryptedMessage, isMessageDecrypted, isMessageEncrypted}
 }

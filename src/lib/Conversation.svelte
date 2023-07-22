@@ -1,13 +1,15 @@
 <script>
 // @ts-nocheck
-
     import Login from "./Login.svelte";
     import { writable } from "svelte/store";
     import { db, username, user } from "./user";
     import { onMount } from "svelte";
     import { SEA } from "gun";
-    import {v4 as uuidv4} from 'uuid';
-    
+    import { v4 as uuidv4} from 'uuid';
+    import { convertAsciiToText, convertTextToAscii } from "./text";
+    import { rsa, encryptMessageWithPublicKey, decryptMessageWithPrivateKey } from "./rsa";
+    import { arrToObj, objToArr } from "./formatter";
+
     let conversations = writable([])
     let alias = ''
     let searchedUser = ''
@@ -16,84 +18,103 @@
     let chatWith = writable([])
     let newMessage = ''
     let conversationSelected = writable(false)
-
+    let pair
 
     onMount(async() => {
-        if(user.is){
+        pair = await db.user()._.sea
+        if(await user.is){
+            await setRsa()
             conversationRef.map().once(async(data, key) => {
                 await checkConversation(key)
             })
         }
     })
 
+    async function setRsa(){
+        let pair = await db.user()._.sea
+        let rsaSet = []
+        await db.get(pair.pub).get('rsa').map().once(async(data,key) => {
+            if(data){
+                if(key == 'publicKey'){
+                    rsaSet[key] = {e: data.e, n: data.n}
+                }else if(key == 'privateKey'){
+                    rsaSet[key] = {d: data.d, n: data.n}
+                }
+            }else{
+                console.log('no rsa key found')
+            }
+        })
+        rsa.set(rsaSet)
+        user.is.rsa = $rsa
+    }
+
     async function checkConversation(id){
-        conversationRef.get(id).get('members').once((data) => {
-            return listConversation(data, id)
+        conversationRef.get(id).once(async(d, k) => {
+            if(d != undefined){
+                let parsedValue = JSON.parse(d.members)
+                d.members = parsedValue
+                if(d.members.creator.pub === pair.pub || d.members.member.pub === pair.pub){
+                    listConversation(d, id)
+                }
+            }
         })
     }
 
     function listConversation(data, key){
-        if(data != null){
-            let pair = db.user()._.sea
-            let isCreator =  data.creator == pair.pub
-            let isMember =  data.member == pair.pub
-            if(isCreator || isMember){
-                let list = {
-                    key: key,
-                    members: {
-                        sender: {
-                            alias: $username,
-                            pub: pair.pub,
-                            epub: pair.epub
-                        },
-                        receiver: {
-                            alias: '',
-                            pub: '',
-                            epub: ''
-                        }
+        if(data != null && key != null){
+            let creator = data.members.creator
+            let member =  data.members.member
+            let list = {
+                key: key,
+                created_at: data.created_at,
+                updated_at: data.updated_at,
+                members: {
+                    sender: {
+                        alias: $username,
+                        n: pair.n,
+                        e: pair.e,
+                        pub: pair.pub,
+                        epub: pair.epub
+                    },
+                    receiver: {
+                        alias: '',
+                        n: '',
+                        e: '',
+                        pub: '',
+                        epub: ''
                     }
                 }
-                if(data.creator == pair.pub){
-                    db.user(data.member).once(async (data) => {
-                    let receiver = {
-                            alias: data.alias,
-                            pub: data.pub,
-                            epub: data.epub
-                        }
-                    list.members.receiver = receiver
-                    })
-                }else if(data.member == pair.pub){
-                    // @ts-ignore
-                    db.user(data.creator).once(async (data) => {
-                    let receiver = {
-                            alias: data.alias,
-                            pub: data.pub,
-                            epub: data.epub
-                        }
-                    list.members.receiver = receiver
-                    })
-                }
-                conversations.set([...$conversations, list])
             }
+            if(creator.pub === pair.pub){
+                list.members.receiver = member
+            }else if(member.pub === pair.pub){
+                list.members.receiver = creator
+            }
+            conversations.set([...$conversations, list].sort((a, b) => b.updated_at.localeCompare(a.updated_at)))
         }
     }
 
     async function startNewConversation(){
-        let pair = user._.sea
-        let creator = pair.pub
-        let member = selectedUser.pub
-        let id = uuidv4()
-        let membersOfConv = {
-                creator, member
-            }
-        conversationRef.get(id).get('members').put(membersOfConv, (ack,err) => {
-            if(ack.err){
-                console.log(ack.err)
-            }else{
-                console.log(ack.conversation)
-                console.log('Conversation Created!')
-            }
-        })
+        const check = await isAlreadyHaveConversation()
+        if(check){
+            console.log('conversation already exist')
+        }else{
+            let now = new Date().toISOString()
+            let creator = {pub: pair.pub, e: $rsa.publicKey.e, n: $rsa.publicKey.n, alias: $username, epub: pair.epub}
+            let member = {pub: selectedUser.pub, e: selectedUser.publicKey.e, n: selectedUser.publicKey.n, alias: selectedUser.alias, epub: selectedUser.epub}
+            let id = uuidv4()
+            let membersOfConv = {
+                    creator, member
+                }
+            let str = JSON.stringify(membersOfConv)
+            conversationRef.get(id).get('members').put(str, (ack,err) => {
+                if(ack.err){
+                    console.log(ack.err)
+                }else{
+                    console.log('Conversation Created!')
+                }
+            }).back().get('created_at').put(now).back().get('updated_at').put(now)
+        }
     }
 
     async function findUser(){
@@ -104,7 +125,13 @@
                 console.log(`user with alias ${alias} found!`)
                 searchedUser = data.alias;
                 selectedUser = data
-                // await checkConversation(data.alias)
+                db.get(data.pub).get('rsa').get('publicKey').on(async(v,k) => {
+                    if(v){
+                        selectedUser.publicKey = {e: v.e, n: v.n}
+                    }else{
+                        console.log('no public key found')
+                    }
+                })
             }else{
                 // alert(`user with alias ${alias} not found!`)
                 console.log(`user with alias ${alias} not found!`)
@@ -121,42 +148,93 @@
         await fetchMessages()
     }
 
+    async function isAlreadyHaveConversation(){
+        conversationRef.map().once(async(data, key) => {
+            conversationRef.get(key).get('members').once(async(d) => {
+                if(d){
+                    let parsed = JSON.parse(d)
+                    if((parsed.creator.pub === pair.pub || parsed.member.pub === pair.pub) && (parsed.creator.pub === selectedUser.pub || parsed.member.pub === selectedUser.pub)){
+                       console.log('conversation already exist')
+                       return true
+                    }else{
+                        console.log('conversation not exist')
+                        return false
+                    }
+                }
+            })
+        })
+    }
+
     async function fetchMessages(){
-        conversationRef.get($chatWith.key).get('messages').map().once(async(data, key) => {
+        conversationRef.get($chatWith.key).get('messages').map().on(async(data, key) => {
             if(data){
-                let pair = db.user()._.sea
                 let receiverEpub = $chatWith.members.receiver.epub
-                let secretData = await SEA.secret(receiverEpub, pair);
-                let decrypted =  await SEA.decrypt(data, secretData);
-                chatWith.set({...$chatWith, messages: [...$chatWith.messages, decrypted].filter((message) => message != undefined).sort((a, b) => a.when - b.when)})
+                let secretData = await SEA.secret(receiverEpub, pair); //secret key for database
+                let decrypted =  await SEA.decrypt(data, secretData); // decription for database
+                if(decrypted != null){ // begin rsa decription
+                    let objMsg = JSON.parse(decrypted.body)
+                    if(decrypted.from == $username && decrypted.to == $chatWith.members.receiver.alias){
+                        decrypted.body = objMsg.toLocal
+                    }else if(decrypted.from == $chatWith.members.receiver.alias && decrypted.to == $username){
+                        decrypted.body = objMsg.toSend
+                    }
+                    let arr = objToArr(decrypted.body)
+                    let rsaDec = decryptMessageWithPrivateKey(arr, user.is.rsa.privateKey)
+                    let ascii = convertAsciiToText(rsaDec)
+                    decrypted.body = ascii // end of rsa decription
+                    // this line below might be buggy on should be improved
+                    chatWith.set({...$chatWith, messages: [...$chatWith.messages, decrypted].filter((message, index) => index != message).sort((a, b) => a.when - b.when)})
+                }
             }else{
                 console.log('No Chat Yet In This Conversation')
             }
-            // console.log($chatWith.messages)
         }).off()
     }
 
     async function sendMessage(){
-        let pair = db.user()._.sea
+        if(newMessage == ''){
+            console.log('message cannot be empty')
+            return
+        }
+        let ascii = convertTextToAscii(newMessage) // begin rsa encryption
+        let toSend = arrToObj(encryptMessageWithPublicKey(ascii, {e: $chatWith.members.receiver.e, n: $chatWith.members.receiver.n}))
+        let toLocal = arrToObj(encryptMessageWithPublicKey(ascii, user.is.rsa.publicKey))
+        let strMsg = JSON.stringify({toSend : toSend, toLocal : toLocal}) // end rsa encryption
         let date = new Date().toISOString()
-        let conversationId = $chatWith.key
-        let receiverEpub = $chatWith?.members?.receiver?.epub
         let messageToSend = {
-            body: newMessage,
+            body: strMsg,
             from: $username,
             to: $chatWith?.members?.receiver?.alias,
             when: date
         }
-        let secretKey = await SEA.secret(receiverEpub, pair);
-        let encrypted = await SEA.encrypt(messageToSend, secretKey);
-        conversationRef.get(conversationId).get('messages').get(date).put(encrypted, (ack,err) => {
-                if(ack.err){
-                    console.log(ack.err)
-                }else{
-                    console.log('Message sent')
-                    newMessage = ''
-                }
-            })
+        let secretKey = await SEA.secret($chatWith?.members?.receiver?.epub, pair); // begin database secret key
+        let encrypted = await SEA.encrypt(messageToSend, secretKey); // end database secret key
+        conversationRef.get($chatWith.key).get('messages').get(date).put(encrypted, (ack,err) => {
+            if(ack.err){
+                console.log(ack.err)
+            }else{
+                console.log('Message sent')
+                newMessage = ''
+            }
+        }).back(2).get('updated_at').put(date, (ack,err) => {
+            if(ack.err){
+                console.log(ack.err)
+            }else{
+                console.log('updated_at updated')
+                conversations.update((val) => {
+                    return val.map((conversation, index) => {
+                        if(conversation.key == $chatWith.key){
+                            conversation.updated_at = date
+                        }
+                        return conversation
+                    })
+                })
+            }
+        })
+    }
+
+    function showInfo(){
+        console.log(`This Is Your Information, Please Use It Wisely`,user.is)
     }
 
     async function clearConversation(){
@@ -183,6 +261,7 @@
     <h1>{$username == undefined ? 'wait...' : 'Logged in as '+$username}</h1>
     <button on:click={signout}>Logout</button>
     <button on:click={clearConversation}>Clear Conversation</button>
+    <button on:click={showInfo}>Console Your Information</button>
     <div>
         <div>
             <input type="text" name="alias" bind:value={alias} id="alias">
@@ -196,12 +275,12 @@
         {/if}
         <div>
             <ul>
-                {#each $conversations as conversation, index}
-                {#if conversation.key == $chatWith.key}
-                    <li><button>{`conversation of ${conversation.members.sender.alias} and ${conversation.members.receiver.alias}`}</button></li>
-                {:else}
-                    <li><button on:click={()=> startWithThisConversation(conversation)}>{`conversation of ${conversation.members.sender.alias} and ${conversation.members.receiver.alias}`}</button></li>
-                {/if}
+                {#each $conversations as $conversation, index}
+                    {#if $conversation.key == $chatWith.key}
+                        <li><button>{`conversation of ${$conversation.members.sender.alias} and ${$conversation.members.receiver.alias}`}</button></li>
+                    {:else}
+                    <li><button on:click={()=> startWithThisConversation($conversation)}>{`conversation of ${$conversation.members.sender.alias} and ${$conversation.members.receiver.alias}`}</button></li>
+                    {/if}
                 {/each}
             </ul>
         </div>
