@@ -1,7 +1,7 @@
 <script>
-    import Login from "./Login.svelte";
+    import Login from "../Login.svelte";
     import { writable } from "svelte/store";
-    import { db, username, user } from "./user";
+    import { db, username, user } from "../utils/user";
     import { onMount } from "svelte";
     import { SEA } from "gun";
     

@@ -1,8 +1,8 @@
 <script>
 // @ts-nocheck
-    import { convertAsciiToText, convertTextToAscii } from "./text";
-    import { generateKeys, encryptMessageWithPublicKey, decryptMessageWithPrivateKey } from "./rsa";
-    import { arrToObj, objToArr } from "./formatter";
+    import { convertAsciiToText, convertTextToAscii } from "../utils/text";
+    import { generateKeys, encryptMessageWithPublicKey, decryptMessageWithPrivateKey } from "../utils/rsa";
+    import { arrToObj, objToArr } from "../utils/formatter";
   import { onMount } from "svelte";
 
     const Alice = {

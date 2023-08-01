@@ -1,5 +1,5 @@
 <script>
-  import { db } from "./user";
+  import { db } from "../utils/user";
   import { writable } from 'svelte/store';
   import { onMount } from "svelte";
 

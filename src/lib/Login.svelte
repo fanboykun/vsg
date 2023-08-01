@@ -1,11 +1,13 @@
 <script>
   // @ts-nocheck
-    import { db, user } from './user';
-    import { rsa, generateKeys, generateRandomTwoDigitPrimeNumbers } from "./rsa";
+    import { db, user } from './utils/user';
+    import { rsa, generateKeys, generateRandomTwoDigitPrimeNumbers } from "./utils/rsa";
+    import { createEventDispatcher } from 'svelte';
 
     let username;
     let password;
-  
+    let dispatch = createEventDispatcher();
+
     function login(keyGen) {
       user.auth(username, password, ({ err }) => err && alert(err));
       if (keyGen){
@@ -13,13 +15,14 @@
           generateInfo(keyGen)
         }
       }
+      dispatch('login', { user });
     }
 
-    async function generateInfo(keyGen){
+    function generateInfo(keyGen){
       // db.on('auth', async () => {
-        const pair = await db.user()._.sea
-        await db.get(pair.pub).get('rsa').put(keyGen, (ack) => {
-          console.log(ack)
+        const pair = db.user()._.sea
+        db.get(pair.pub).get('rsa').put(keyGen, (ack) => {
+          console.log(ack.rsa)
           if(ack.err){
             console.log(ack.err)
           }else{
@@ -34,10 +37,10 @@
         if (err) {
           alert(err);
         } else {
-          if(username == 'aku'){
+          if(username == 'alice'){
             const keyGen = generateKeys(11, 13)
             login(keyGen);
-          }else if(username == 'dia'){
+          }else if(username == 'bob'){
             const keyGen = generateKeys(17, 23)
             login(keyGen);
           }else{

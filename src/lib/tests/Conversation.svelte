@@ -1,14 +1,14 @@
 <script>
 // @ts-nocheck
-    import Login from "./Login.svelte";
+    import Login from "../Login.svelte";
     import { writable } from "svelte/store";
-    import { db, username, user } from "./user";
+    import { db, username, user } from "../utils/user";
     import { onMount } from "svelte";
     import { SEA } from "gun";
     import { v4 as uuidv4} from 'uuid';
-    import { convertAsciiToText, convertTextToAscii } from "./text";
-    import { rsa, encryptMessageWithPublicKey, decryptMessageWithPrivateKey } from "./rsa";
-    import { arrToObj, objToArr } from "./formatter";
+    import { convertAsciiToText, convertTextToAscii } from "../utils/text";
+    import { rsa, encryptMessageWithPublicKey, decryptMessageWithPrivateKey } from "../utils/rsa";
+    import { arrToObj, objToArr } from "../utils/formatter";
 
     let conversations = writable([])
     let alias = ''

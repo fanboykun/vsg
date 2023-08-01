@@ -2,8 +2,8 @@
 // @ts-nocheck
 
     import { onMount } from "svelte";
-    import Login from "./Login.svelte";
-    import { db, user, username } from "./user";
+    import Login from "../Login.svelte";
+    import { db, user, username } from "../utils/user";
     import { writable } from "svelte/store";
     import "gun/sea";
     let searchedUser = '';
