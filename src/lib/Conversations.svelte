@@ -1,53 +1,59 @@
 <script>
     // @ts-nocheck
     import { writable } from "svelte/store";
-    import { db, username, user, isLoggedIn } from "./utils/user";
+    import { db, username, user, isLoggedIn, loggedInUser } from "./utils/user";
     import { onMount } from "svelte";
     import { SEA } from "gun";
     import { convertAsciiToText, convertTextToAscii } from "./utils/text";
-    import { encryptMessageWithPublicKey, decryptMessageWithPrivateKey } from "./utils/rsa";
+    import { encryptMessageWithPublicKey, decryptMessageWithPrivateKey, rsa } from "./utils/rsa";
     import { arrToObj, objToArr } from "./utils/formatter";
-    import { createEventDispatcher } from "svelte";
     import Message from "./components/Message.svelte";
     import MessageHeader from "./components/MessageHeader.svelte";
 
-    let dispatch = createEventDispatcher()
     let conversations = writable([])
     let alias = ''
     let searchedUser = ''
+    let fetchingUserStatus = ''
     let selectedUser
     let conversationRef = db.get('conversations')
     let chatWith = writable([])
     let newMessage = ''
     let conversationSelected = writable(false)
-    let pair
     let viewInfo = false
-    let open = {
-      status: false,
-      where: ''
-    }
-    
+    let open = { status: false, where: ''}
+    let scrollBottom
+
     onMount(async() => {
-        pair = user.is
-        if(pair){
-           await fetchConversations()
-        }
+        if($username){
+            let pair = db.user()._.sea
+            loggedInUser.update(v => {
+                v.priv = pair.priv
+                v.epriv = pair.epriv
+                return v
+            })
+            await fetchConversations()
+        }else{isLoggedIn.set(false)}
     })
+
+    function autoScroll() {
+        setTimeout(() => scrollBottom?.scrollIntoView({ behavior: 'auto' }), 50);
+    }
   
     async function fetchConversations(){
         conversationRef.map().once((data, key) => {
-            if(!key.includes(user.is.pub)) return
+            if(!key.includes($loggedInUser.pub)) return
             try{
                 let parsedMemberValue = JSON.parse(data.members);
                 data.members = parsedMemberValue
                 listConversation(data, key)
             }catch(e){
-                console.log(e)
+               return 
             }
         })
     }
   
     function listConversation(data, key){
+        if(data == undefined) return
         if(data != null && key != null){
             let creator = data.members.creator
             let member =  data.members.member
@@ -60,8 +66,8 @@
                         alias: $username,
                         n: user.is.rsa.publicKey.n,
                         e: user.is.rsa.publicKey.e,
-                        pub: user.is.pub,
-                        epub: user.is.epub
+                        pub: $loggedInUser.pub,
+                        epub: $loggedInUser.epub
                     },
                     receiver: {
                         alias: '',
@@ -87,18 +93,16 @@
             console.log('conversation already exist')
         }else{
             let now = new Date().toISOString()
-            let creator = {pub: user.is.pub, e: user.is.rsa.publicKey.e, n: user.is.rsa.publicKey.n, alias: $username, epub: user.is.epub}
+            let creator = {pub: $loggedInUser.pub, e: $loggedInUser.rsa.publicKey.e, n: $loggedInUser.rsa.publicKey.n, alias: $username, epub: $loggedInUser.epub}
             let member = {pub: selectedUser.pub, e: selectedUser.publicKey.e, n: selectedUser.publicKey.n, alias: selectedUser.alias, epub: selectedUser.epub}
             let id = creator.pub + '|||' + member.pub
             let membersOfConv = {
                     creator, member
                 }
             let str = JSON.stringify(membersOfConv)
-            conversationRef.get(id).get('members').put(str, (ack,err) => {
+            conversationRef.get(id).get('members').put(str, (ack) => {
                 if(ack.err){
                     console.log(ack.err)
-                }else{
-                    console.log('Conversation Created!')
                 }
             }).back().get('created_at').put(now).back().get('updated_at').put(now)
             openDialog('center')
@@ -109,19 +113,23 @@
       if(alias == '') return
         let formatedAlias = `@${alias}`
         // @ts-ignore
+        fetchingUserStatus = 'fetching'
         db.user(formatedAlias).map().on((data) => {
             if(data){
                 console.log(`user with alias ${alias} found!`)
-                searchedUser = data.alias;
-                selectedUser = data
                 db.get(data.pub).get('rsa').get('publicKey').on((v,k) => {
                     if(v){
                         selectedUser.publicKey = {e: v.e, n: v.n}
+                        fetchingUserStatus = 'fetched'
                     }else{
+                        fetchingUserStatus = 'error'
                         console.log('no public key found')
                     }
                 })
+                searchedUser = data.alias;
+                selectedUser = data
             }else{
+                fetchingUserStatus = 'error'
                 // alert(`user with alias ${alias} not found!`)
                 console.log(`user with alias ${alias} not found!`)
             }
@@ -134,6 +142,7 @@
         conversation.messages = []
         chatWith.set(conversation)
         conversationSelected.set(true)
+        rsa.set([])
         fetchMessages()
     }
   
@@ -151,22 +160,29 @@
         conversationRef.get($chatWith.key).get('messages').map().on(async(data, key) => {
             if(data){
                 let receiverEpub = $chatWith.members.receiver.epub
-                let secretData = await SEA.secret(receiverEpub, user.is); //secret key for database
+                let secretData = await SEA.secret(receiverEpub, $loggedInUser); //secret key for database
                 let decrypted =  await SEA.decrypt(data, secretData); // decription for database
-                if(decrypted != null){ // begin rsa decription
+                if(decrypted != null || decrypted != undefined){ // begin rsa decription
                     let objMsg = JSON.parse(decrypted.body)
                     if(decrypted.from == $username && decrypted.to == $chatWith.members.receiver.alias){
                         decrypted.body = objMsg.toLocal
                     }else if(decrypted.from == $chatWith.members.receiver.alias && decrypted.to == $username){
                         decrypted.body = objMsg.toSend
+                        let toProve = {
+                            sender : decrypted.from,
+                            cyphertext : objToArr(objMsg.toSend),
+                            plaintext : decryptMessageWithPrivateKey(objToArr(objMsg.toSend), $loggedInUser.rsa.privateKey),
+                            text : convertAsciiToText(decryptMessageWithPrivateKey(objToArr(objMsg.toSend), $loggedInUser.rsa.privateKey))
+                        }
+                        rsa.set([...$rsa, toProve])
                     }
                     let arr = objToArr(decrypted.body)
-                    let rsaDec = decryptMessageWithPrivateKey(arr, user.is.rsa.privateKey)
+                    let rsaDec = decryptMessageWithPrivateKey(arr, $loggedInUser.rsa.privateKey)
                     let ascii = convertAsciiToText(rsaDec)
                     decrypted.body = ascii // end of rsa decription
-                    // this line below might be buggy on should be improved
                     if(checkDuplicateMessage(decrypted)) return
                     chatWith.set({...$chatWith, messages: [...$chatWith.messages, decrypted].sort((a, b) => a.when - b.when)})
+                    autoScroll()
                 }
             }else{
                 console.log('No Chat Yet In This Conversation')
@@ -191,29 +207,24 @@
         }
         let ascii = convertTextToAscii(newMessage) // begin rsa encryption
         let toSend = arrToObj(encryptMessageWithPublicKey(ascii, {e: $chatWith.members.receiver.e, n: $chatWith.members.receiver.n}))
-        let toLocal = arrToObj(encryptMessageWithPublicKey(ascii, user.is.rsa.publicKey))
+        let toLocal = arrToObj(encryptMessageWithPublicKey(ascii, $loggedInUser.rsa.publicKey))
         let strMsg = JSON.stringify({toSend : toSend, toLocal : toLocal}) // end rsa encryption
         let date = new Date().toISOString()
         let messageToSend = {
             body: strMsg,
             from: $username,
-            to: $chatWith?.members?.receiver?.alias,
+            to: $chatWith.members.receiver.alias,
             when: date
         }
-        let secretKey = await SEA.secret($chatWith?.members?.receiver?.epub, user.is); // begin database secret key
-        let encrypted = await SEA.encrypt(messageToSend, secretKey); // end database secret key
-        conversationRef.get($chatWith.key).get('messages').get(date).put(encrypted, (ack,err) => {
+        let secretKey = await SEA.secret($chatWith.members.receiver.epub, $loggedInUser);
+        let encrypted = await SEA.encrypt(messageToSend, secretKey);
+        conversationRef.get($chatWith.key).get('messages').get(date).put(encrypted, (ack) => {
             if(ack.err){
                 console.log(ack.err)
             }else{
-                console.log('Message sent')
                 newMessage = ''
-            }
-        }).back(2).get('updated_at').put(date, (ack,err) => {
-            if(ack.err){
-                console.log(ack.err)
-            }else{
-                console.log('updated_at updated')
+                conversationRef.get($chatWith.key).get('updated_at').put(date)
+                autoScroll()
             }
         })
     }
@@ -231,7 +242,7 @@
                 }else{
                     console.log('Conversation Cleared')
                 }
-            })
+            }).back(1).put(null)
         })
     }
   
@@ -242,6 +253,7 @@
       openDialog('left')
       user.leave();
       username.set('');
+      loggedInUser.set({pub: '', priv: '', epub: '', epriv: '', rsa: {publicKey: {e: '', n: ''}, privateKey: {d: '', n: ''}}})
       isLoggedIn.set(false);
     }
   
@@ -259,8 +271,6 @@
     }
   </script>
   
-  <main>
-    <!-- component -->
     <div class="flex flex-auto">
       <!-- sidebar -->
         <div class="flex flex-col w-64 h-[100vh] max-h-screen overflow-y-auto scrollbar-thumb-blue scrollbar-thumb-rounded scrollbar-track-blue-lighter scrollbar-w-2 scrolling-touch gap-y-2 bg-white shadow-lg shadow-gray-400 text-teal-500 font-semibold text-lg">
@@ -330,13 +340,19 @@
                           <input type="text" bind:value={alias} class=" min-w-full bg-gray-200 rounded-xl px-2 py-2 focus:ring-2 focus:ring-teal-400 text-black placeholder:text-gray-400" placeholder="input the recepient username">
                           <button class=" p-2 drop-shadow-md border-2 hover:bg-teal-700 focus:bg-teal-700 border-teal-600 rounded-xl mt-2" on:click={findUser}>Search</button>
                       </div>
-                      {#if searchedUser != ''}
+                      {#if fetchingUserStatus == 'fetched' && fetchingUserStatus != ''}
                           <div class="mt-2 w-full h-auto p-2 flex-0 items-center justify-center border-y-2">
                               <div class="grid grid-cols-3 items-center justify-between">
                                   <span class="flex text-base font-normal text-white p-2 justify-start col-span-2">{`'${searchedUser}' found!`}</span>
                                   <button on:click={startNewConversation} class="flex m-2 p-2 rounded-xl justify-self-center bg-teal-700 shadow-md shadow-teal-500/50 hover:shadow-teal-500/80">Start Conversation</button>
                               </div>
                           </div>
+                        {:else}
+                        <div class="mt-2 w-full h-auto p-2 flex-0 items-center justify-center border-y-2">
+                            <div class="grid grid-cols-3 items-center justify-between">
+                                <span class="flex text-base font-normal text-white p-2 justify-start col-span-2">{fetchingUserStatus}</span>
+                            </div>
+                        </div>
                       {/if}
                   </div>
               </div>
@@ -346,13 +362,14 @@
           <div class="p-2 justify-between flex h-[80vh] flex-col w-full bg-gray-200">
               <div class="flex sm:items-center justify-center px-2 py-2 rounded-xl border-b-2 bg-white border-teal-200/70">
                   <!-- message header -->
-                  <MessageHeader withWho={$chatWith?.members.receiver?.alias}/>
+                  <MessageHeader {chatWith}/>
               </div>
               <!-- messages list -->
               <div id="messages" class="flex flex-col space-y-4 p-3 overflow-y-auto scrollbar-thumb-blue scrollbar-thumb-rounded scrollbar-track-blue-lighter scrollbar-w-2 scrolling-touch">
                   {#each $chatWith.messages as message (message.when)}
                       <Message {message}/>
                   {/each}
+                  <div class="bg-black w-16 block" bind:this={scrollBottom}></div>
               </div>
           </div>
           <!-- message input -->
@@ -389,7 +406,6 @@
           {/if}
         </div>
     </div>
-  </main>
   
   <style>
       .scrollbar-w-2::-webkit-scrollbar {
