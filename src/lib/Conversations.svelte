@@ -218,11 +218,11 @@
         }
         let secretKey = await SEA.secret($chatWith.members.receiver.epub, $loggedInUser);
         let encrypted = await SEA.encrypt(messageToSend, secretKey);
+        newMessage = ''
         conversationRef.get($chatWith.key).get('messages').get(date).put(encrypted, (ack) => {
             if(ack.err){
                 console.log(ack.err)
             }else{
-                newMessage = ''
                 conversationRef.get($chatWith.key).get('updated_at').put(date)
                 autoScroll()
             }
@@ -230,7 +230,7 @@
     }
   
     function showInfo(){
-      console.log(`This Is Your Information, Please Use It Wisely`,user.is)
+    //   console.log(`This Is Your Information, Please Use It Wisely`,user.is)
       viewInfo = !viewInfo
     }
   
@@ -316,7 +316,7 @@
                           <button class=" p-2 drop-shadow-md border-2 hover:bg-teal-700 border-teal-600 rounded-xl mt-2" on:click={showInfo}>View Info</button>
                       </div>
                       {#if viewInfo}
-                      <div class="flex-inline py-2 text-base font-normal leading-8">
+                      <div class="flex-inline py-2 text-base font-normal font-mono leading-8">
                           <span class="block text-lg font-bold">THIS IS YOUR RSA INFORMATION, PLEASE BE WISE WITH IT</span>
                           <span class="block">RSA Public Key : {user.is.rsa.publicKey.e}</span>
                           <span class="block">RSA Private Key : {user.is.rsa.privateKey.d}</span>
