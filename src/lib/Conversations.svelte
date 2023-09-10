@@ -312,7 +312,7 @@
                       <span class="flex flex-row w-full border-b-2 border-teal-600 mb-2 text-base">{$username}</span>
                       <div class="flex-inline border-b-2 border-teal-600 pb-2">
                           <button class=" p-2 drop-shadow-md border-2 hover:bg-teal-700 border-teal-600 rounded-xl" on:click={signout}>Logout</button>
-                          <button class=" p-2 drop-shadow-md border-2 hover:bg-teal-700 border-teal-600 rounded-xl" on:click={clearConversation}>Clear Conversation Data</button>
+                          <!-- <button class=" p-2 drop-shadow-md border-2 hover:bg-teal-700 border-teal-600 rounded-xl" on:click={clearConversation}>Clear Conversation Data</button> -->
                           <button class=" p-2 drop-shadow-md border-2 hover:bg-teal-700 border-teal-600 rounded-xl mt-2" on:click={showInfo}>View Info</button>
                       </div>
                       {#if viewInfo}

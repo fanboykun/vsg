@@ -17,7 +17,8 @@ export function generateKeys(p, q){
 }
 
 export function generateRandomTwoDigitPrimeNumbers(){
-    return getRandPrime(10, 99)
+    // return getRandPrime(10, 99)
+    return getRandPrime(100, 999)
 }
 
 const getPrimes = (min, max) => {
