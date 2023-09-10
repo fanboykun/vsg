@@ -34,12 +34,6 @@
     function signup() {
       dispatch('signup', {register: true});
     }
-
-    function test(){
-      const keyGen = generateKeys(generateRandomTwoDigitPrimeNumbers(), generateRandomTwoDigitPrimeNumbers())
-      console.log('generated key is')
-      console.log(keyGen)
-    }
   </script>
 
   <section class="bg-gray-50">
@@ -65,7 +59,6 @@
                         <input type="password" name="password" bind:value={password} id="password" placeholder="••••••••" class="bg-gray-50 border border-gray-300 text-gray-900 sm:text-sm rounded-lg focus:ring-teal-600 focus:border-teal-600 block w-full p-2.5" required="">
                     </div>
                     <button type="submit" on:click={login} class="w-full text-white bg-teal-600 hover:bg-teal-700 focus:ring-4 focus:outline-none focus:ring-teal-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center">Sign in</button>
-                    <button type="submit" on:click={test} class="w-full text-white bg-teal-600 hover:bg-teal-700 focus:ring-4 focus:outline-none focus:ring-teal-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center">Test</button>
                     <p class="text-sm font-light text-gray-500">
                         Don’t have an account yet? <button on:click={signup} class="font-medium text-teal-600 hover:underline">Sign up</button> instead.
                     </p>
